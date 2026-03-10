@@ -15,7 +15,7 @@ const loginSchema = z.object({
 });
 
 const registerSchema = z.object({
-  name: z.string().min(2, 'Name must be at least 2 characters'),
+  fullName: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
@@ -31,7 +31,7 @@ export default function Auth() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-  const [registerForm, setRegisterForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
+  const [registerForm, setRegisterForm] = useState({ fullName: '', email: '', password: '', confirmPassword: '' });
 
   const { login, register, isAuthenticated, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -63,9 +63,10 @@ export default function Auth() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrors({});
-    
+    console.log("yeah its there!!!!!");
     const result = registerSchema.safeParse(registerForm);
     if (!result.success) {
+      console.log("yes it is");
       const fieldErrors: Record<string, string> = {};
       result.error.errors.forEach(err => {
         if (err.path[0]) fieldErrors[err.path[0] as string] = err.message;
@@ -75,9 +76,10 @@ export default function Auth() {
     }
 
     const success = await register(registerForm);
+    console.log("====="+success);
     if (success) {
       setIsLogin(true);
-      setRegisterForm({ name: '', email: '', password: '', confirmPassword: '' });
+      setRegisterForm({ fullName: '', email: '', password: '', confirmPassword: '' });
     }
   };
 
@@ -164,11 +166,11 @@ export default function Auth() {
                   id="name"
                   type="text"
                   placeholder="John Doe"
-                  value={registerForm.name}
-                  onChange={e => setRegisterForm(prev => ({ ...prev, name: e.target.value }))}
-                  className={errors.name ? 'border-destructive' : ''}
+                  value={registerForm.fullName}
+                  onChange={e => setRegisterForm(prev => ({ ...prev, fullName: e.target.value }))}
+                  className={errors.fullName ? 'border-destructive' : ''}
                 />
-                {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+                {errors.fullName && <p className="text-xs text-destructive">{errors.fullName}</p>}
               </div>
 
               <div className="space-y-2">
