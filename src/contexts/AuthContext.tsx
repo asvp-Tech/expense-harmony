@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AuthState, LoginCredentials, RegisterData, User } from '@/types';
-import { mockUser } from '@/data/mockData';
+import { authApi } from '@/lib/api';
 import { toast } from '@/hooks/use-toast';
 
 interface AuthContextType extends AuthState {
@@ -22,19 +22,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
-    // Check for existing session
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
         const { user, token } = JSON.parse(stored);
-        setState({
-          user,
-          token,
-          isAuthenticated: true,
-          isLoading: false,
-        });
+        setState({ user, token, isAuthenticated: true, isLoading: false });
       } catch {
         localStorage.removeItem(STORAGE_KEY);
+        sessionStorage.removeItem(STORAGE_KEY);
         setState(prev => ({ ...prev, isLoading: false }));
       }
     } else {
@@ -44,93 +39,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
     setState(prev => ({ ...prev, isLoading: true }));
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Mock validation - in real app, this would be an API call
-    if (credentials.email && credentials.password.length >= 6) {
-      const token = 'mock_jwt_token_' + Date.now();
-      const user: User = { ...mockUser, email: credentials.email };
-      
-      if (credentials.rememberMe) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
-      } else {
-        sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
-      }
-      
-      setState({
-        user,
-        token,
-        isAuthenticated: true,
-        isLoading: false,
-      });
-      
-      toast({
-        title: 'Welcome back!',
-        description: `Logged in as ${user.email}`,
-      });
-      
+    try {
+      const response = await authApi.login(credentials.email, credentials.password);
+      const token = response.token;
+      const user: User = response.user || {
+        id: '',
+        name: credentials.email.split('@')[0],
+        email: credentials.email,
+      };
+
+      const storage = credentials.rememberMe ? localStorage : sessionStorage;
+      storage.setItem(STORAGE_KEY, JSON.stringify({ user, token }));
+
+      setState({ user, token, isAuthenticated: true, isLoading: false });
+
+      toast({ title: 'Welcome back!', description: `Logged in as ${user.email}` });
       return true;
-    }
-    
-    setState(prev => ({ ...prev, isLoading: false }));
-    toast({
-      title: 'Login failed',
-      description: 'Invalid email or password',
-      variant: 'destructive',
-    });
-    return false;
-  };
-
-  const register = async (data: RegisterData): Promise<boolean> => {
-    setState(prev => ({ ...prev, isLoading: true }));
-    
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
-    // Mock validation
-    if (data.password !== data.confirmPassword) {
+    } catch (error: any) {
       setState(prev => ({ ...prev, isLoading: false }));
       toast({
-        title: 'Registration failed',
-        description: 'Passwords do not match',
+        title: 'Login failed',
+        description: error.message || 'Invalid email or password',
         variant: 'destructive',
       });
       return false;
     }
+  };
 
-    if (data.email && data.password.length >= 6 && data.name) {
+  const register = async (data: RegisterData): Promise<boolean> => {
+    setState(prev => ({ ...prev, isLoading: true }));
+
+    try {
+      if (data.password !== data.confirmPassword) {
+        throw new Error('Passwords do not match');
+      }
+      await authApi.register(data);
+      setState(prev => ({ ...prev, isLoading: false }));
+      toast({ title: 'Registration successful!', description: 'Please login with your new account' });
+      return true;
+    } catch (error: any) {
       setState(prev => ({ ...prev, isLoading: false }));
       toast({
-        title: 'Registration successful!',
-        description: 'Please login with your new account',
+        title: 'Registration failed',
+        description: error.message || 'Please check your information',
+        variant: 'destructive',
       });
-      return true;
+      return false;
     }
-    
-    setState(prev => ({ ...prev, isLoading: false }));
-    toast({
-      title: 'Registration failed',
-      description: 'Please check your information',
-      variant: 'destructive',
-    });
-    return false;
   };
 
   const logout = () => {
     localStorage.removeItem(STORAGE_KEY);
     sessionStorage.removeItem(STORAGE_KEY);
-    setState({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-    toast({
-      title: 'Logged out',
-      description: 'See you next time!',
-    });
+    setState({ user: null, token: null, isAuthenticated: false, isLoading: false });
+    toast({ title: 'Logged out', description: 'See you next time!' });
   };
 
   return (
@@ -146,14 +109,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
-}
-
-// Helper to get auth header for API calls
-export function getAuthHeader(): { Authorization: string } | {} {
-  const stored = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
-  if (stored) {
-    const { token } = JSON.parse(stored);
-    return { Authorization: `Bearer ${token}` };
-  }
-  return {};
 }
